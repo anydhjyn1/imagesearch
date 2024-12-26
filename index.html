@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像検索・生成まとめサイト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #searchQuery {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px;
+            margin: 5px;
+        }
+        #engineOptions label, #otherOptions label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        #links a {
+            margin-right: 10px;
+        }
+        #history-panel {
+            margin-top: 20px;
+            border-top: 1px solid #ccc;
+            padding-top: 20px;
+        }
+        #historyList li {
+            cursor: pointer;
+            padding: 5px;
+        }
+        #historyList li:hover {
+            background-color: #f0f0f0;
+        }
+        #message {
+            color: green;
+            margin: 10px 0;
+        }
+        #maintenance {
+            margin-top: 20px;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-content">
+        <h1>画像検索・生成まとめサイト</h1>
+
+        <input type="text" id="searchQuery" placeholder="検索語句を入力してください">
+
+        <div id="mainButtons">
+            <button id="searchAll">まとめて検索</button>
+            <button id="copyQuery">検索語句のコピー</button>
+            <button id="clearQuery">検索語句のクリア</button>
+        </div>
+
+        <div id="individualSearchButtons">
+            <button onclick="search('googleImages')">Google画像で検索</button>
+            <button onclick="search('bingImages')">Bing画像で検索</button>
+            <button onclick="search('bingCreate')">Bing Image Creatorで生成</button>
+            <button onclick="search('leonardo')">Leonardoで生成</button>
+            <button onclick="search('pinterest')">Pinterestで検索</button>
+            <button onclick="search('shutterstock')">Shutterstockで検索</button>
+        </div>
+
+        <h2>まとめて検索のオプション</h2>
+        <div id="engineOptions">
+            <label><input type="checkbox" id="googleImages" checked> <a href="https://www.google.com/imghp" target="_blank">Google画像検索</a></label>
+            <label><input type="checkbox" id="bingImages" checked> <a href="https://www.bing.com/images" target="_blank">Bing画像検索</a></label>
+            <label><input type="checkbox" id="bingCreate" checked> <a href="https://www.bing.com/images/create" target="_blank">Bing Image Creator</a></label>
+            <label><input type="checkbox" id="leonardo" checked> <a href="https://app.leonardo.ai" target="_blank">Leonardo.ai</a></label>
+            <label><input type="checkbox" id="pinterest" checked> <a href="https://www.pinterest.com" target="_blank">Pinterest</a></label>
+            <label><input type="checkbox" id="shutterstock" checked> <a href="https://www.shutterstock.com" target="_blank">Shutterstock</a></label>
+        </div>
+
+        <h2>その他オプション</h2>
+        <div id="otherOptions">
+            <label><input type="checkbox" id="enterToSearch" checked> エンターキーで検索</label>
+            <label><input type="checkbox" id="recordHistory" checked> 検索履歴を記録する</label>
+        </div>
+
+        <div id="links">
+            <a href="https://gemini.google.com/app?hl=ja" target="_blank">Gemini</a>
+            <a href="https://aistudio.google.com/app/prompts/new_chat" target="_blank">AI Studio</a>
+            <a href="https://claude.ai/new" target="_blank">Claude</a>
+            <a href="https://mapify.so/ja/app/new" target="_blank">Mapify</a>
+        </div>
+
+        <div id="maintenance">
+            <a href="https://github.com/anydhjyn1/anydhjyn1.github.io/edit/main/index.html" target="_blank">メンテナンス</a>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <div id="history-panel">
+        <h2>検索履歴</h2>
+        <button id="clearHistory">検索履歴をクリア</button>
+        <ul id="historyList"></ul>
+    </div>
+
+    <script>
+        function saveSettings() {
+            const settings = {
+                engines: {
+                    googleImages: document.getElementById('googleImages').checked,
+                    bingImages: document.getElementById('bingImages').checked,
+                    bingCreate: document.getElementById('bingCreate').checked,
+                    leonardo: document.getElementById('leonardo').checked,
+                    pinterest: document.getElementById('pinterest').checked,
+                    shutterstock: document.getElementById('shutterstock').checked
+                },
+                options: {
+                    enterToSearch: document.getElementById('enterToSearch').checked,
+                    recordHistory: document.getElementById('recordHistory').checked
+                }
+            };
+            localStorage.setItem('searchSettings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const settings = JSON.parse(localStorage.getItem('searchSettings'));
+            if (settings) {
+                Object.keys(settings.engines).forEach(engine => {
+                    const checkbox = document.getElementById(engine);
+                    if (checkbox) {
+                        checkbox.checked = settings.engines[engine];
+                    }
+                });
+                document.getElementById('enterToSearch').checked = settings.options.enterToSearch;
+                document.getElementById('recordHistory').checked = settings.options.recordHistory;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchQuery = document.getElementById('searchQuery');
+            const searchAllButton = document.getElementById('searchAll');
+            const copyQueryButton = document.getElementById('copyQuery');
+            const clearQueryButton = document.getElementById('clearQuery');
+            const clearHistoryButton = document.getElementById('clearHistory');
+
+            const checkboxes = document.querySelectorAll('#engineOptions input[type="checkbox"], #otherOptions input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', saveSettings);
+            });
+
+            searchAllButton.addEventListener('click', searchAll);
+            copyQueryButton.addEventListener('click', copyQuery);
+            clearQueryButton.addEventListener('click', clearQuery);
+            clearHistoryButton.addEventListener('click', clearHistory);
+
+            searchQuery.addEventListener('keyup', function(event) {
+                if (event.key === 'Enter' && document.getElementById('enterToSearch').checked) {
+                    searchAll();
+                }
+            });
+
+            loadSettings();
+            loadHistory();
+        });
+
+        function formatQuery(query) {
+            return query.replace(/[\s　]/g, '+');
+        }
+
+        function search(engine) {
+            const baseQuery = formatQuery(document.getElementById('searchQuery').value);
+            let url;
+            switch(engine) {
+                case 'googleImages':
+                    url = `https://www.google.com/search?q=${baseQuery}&tbm=isch`;
+                    break;
+                case 'bingImages':
+                    url = `https://www.bing.com/images/search?q=${baseQuery}`;
+                    break;
+                case 'bingCreate':
+                    url = `https://www.bing.com/images/create?q=${baseQuery}`;
+                    break;
+                case 'leonardo':
+                    url = `https://app.leonardo.ai/search?q=${baseQuery}`;
+                    break;
+                case 'pinterest':
+                    url = `https://www.pinterest.com/search/pins/?q=${baseQuery}`;
+                    break;
+                case 'shutterstock':
+                    url = `https://www.shutterstock.com/search/${baseQuery}`;
+                    break;
+            }
+            window.open(url, '_blank');
+            if (document.getElementById('recordHistory').checked) {
+                addToHistory(document.getElementById('searchQuery').value);
+            }
+            saveSettings();
+        }
+
+        function searchAll() {
+            const baseQuery = formatQuery(document.getElementById('searchQuery').value);
+            const engines = [
+                {id: 'googleImages', url: `https://www.google.com/search?q=${baseQuery}&tbm=isch`},
+                {id: 'bingImages', url: `https://www.bing.com/images/search?q=${baseQuery}`},
+                {id: 'bingCreate', url: `https://www.bing.com/images/create?q=${baseQuery}`},
+                {id: 'leonardo', url: `https://app.leonardo.ai/search?q=${baseQuery}`},
+                {id: 'pinterest', url: `https://www.pinterest.com/search/pins/?q=${baseQuery}`},
+                {id: 'shutterstock', url: `https://www.shutterstock.com/search/${baseQuery}`}
+            ];
+
+            engines.forEach(engine => {
+                if (document.getElementById(engine.id).checked) {
+                    window.open(engine.url, '_blank');
+                }
+            });
+
+            if (document.getElementById('recordHistory').checked) {
+                addToHistory(document.getElementById('searchQuery').value);
+            }
+            saveSettings();
+        }
+
+        function copyQuery() {
+            const query = document.getElementById('searchQuery');
+            query.select();
+            document.execCommand('copy');
+            showMessage('検索語句をクリップボードにコピーしました。');
+        }
+
+        function clearQuery() {
+            document.getElementById('searchQuery').value = '';
+            showMessage('検索語句をクリアしました。');
+        }
+
+        function showMessage(msg) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = msg;
+            setTimeout(() => {
+                messageDiv.textContent = '';
+            }, 3000);
+        }
+
+        function addToHistory(query) {
+            let history = JSON.parse(localStorage.getItem('searchHistory')) || [];
+            history.unshift(query);
+            history = history.slice(0, 10);
+            localStorage.setItem('searchHistory', JSON.stringify(history));
+            loadHistory();
+        }
+
+        function loadHistory() {
+            const historyList = document.getElementById('historyList');
+            const history = JSON.parse(localStorage.getItem('searchHistory')) || [];
+            historyList.innerHTML = '';
+            history.forEach(query => {
+                const li = document.createElement('li');
+                li.textContent = query;
+                li.addEventListener('click', () => {
+                    const searchBox = document.getElementById('searchQuery');
+                    const currentQuery = searchBox.value;
+                    
+                    if (currentQuery) {
+                        searchBox.value = currentQuery + ' ' + query;
+                    } else {
+                        searchBox.value = query;
+                    }
+                    
+                    searchBox.focus();
+                    searchBox.setSelectionRange(searchBox.value.length, searchBox.value.length);
+                });
+                historyList.appendChild(li);
+            });
+        }
+
+        function clearHistory() {
+            localStorage.removeItem('searchHistory');
+            loadHistory();
+            showMessage('検索履歴をクリアしました。');
+        }
+    </script>
+</body>
+</html>
